@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,9 +34,32 @@ var books = []book{
 	{Id: "3", Title: "System Design interview", Author: "alex Xu", Description: "A good book on system design interviews", Genre: "Technical", Has_read: true},
 }
 
+type response struct {
+	HttpStatusCode string      `json:"httpStatusCode"`
+	SuccessMessage string      `json:"successMessage"`
+	Body           interface{} `json:"body"`
+}
+
+func respondWithJSON(writer http.ResponseWriter, httpStatusCode string, successMessage string, payload interface{}) {
+	writer.WriteHeader(200)
+	p := response{
+		HttpStatusCode: httpStatusCode,
+		SuccessMessage: successMessage,
+		Body:           payload,
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	// json.NewEncoder(writer).Encode(p)
+	resp, err := json.MarshalIndent(p, "  ", "  ")
+	if err != nil {
+		log.Fatal()
+	}
+	writer.Write(resp)
+}
+
 // getAlbums responds with the list of all albums as JSON.
-func getBooks(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, books)
+func getBooks(writer http.ResponseWriter, request *http.Request) {
+	respondWithJSON(writer, "200", "SUCCESS", books)
 }
 
 func addBook(c *gin.Context) {
@@ -85,7 +110,6 @@ func deleteBook(c *gin.Context) {
 
 	for _, b := range books {
 		if b.Id == id {
-			books = books.
 			c.IndentedJSON(http.StatusOK, b)
 			return
 		}
@@ -93,13 +117,13 @@ func deleteBook(c *gin.Context) {
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "book not found"})
 }
 func main() {
-	// var b = book{Id: 4, Title: "System Design interview", Author: "alex Xu", Description: "A good book on system design interviews", Genre: "Technical", Has_read: true}
-	// b.toJson()
-	router := gin.Default()
-	router.GET("/books", getBooks)
-	router.GET("/book/:id", getBookByID)
-	router.POST("/book", addBook)
-	router.PUT("/book/:id", updateBook)
-	router.DELETE("/book/:id:", deleteBook)
-	router.Run("localhost:8080")
+	// router.GET("/books", getBooks)
+	// getAllBooksHandler := http.HandlerFunc(getBooks)
+	http.HandleFunc("/books", getBooks)
+	http.ListenAndServe("localhost:8080", nil)
+	// router.GET("/book/:id", getBookByID)
+	// router.POST("/book", addBook)
+	// router.PUT("/book/:id", updateBook)
+	// router.DELETE("/book/:id", deleteBook)
+	// router.Run("localhost:8080")
 }
