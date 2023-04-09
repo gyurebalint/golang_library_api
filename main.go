@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"path"
+	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/mux"
 )
 
 type book struct {
@@ -17,30 +19,19 @@ type book struct {
 	Has_read    bool   `json:"has_read"`
 }
 
-// func (b book) toJson() {
+type response struct {
+	HttpStatusCode int         `json:"httpStatusCode"`
+	SuccessMessage string      `json:"successMessage"`
+	Body           interface{} `json:"body"`
+}
 
-// 	jsonBook, err := json.Marshal(b)
-// 	if err != nil {
-// 		fmt.Println(err)
-// 		return
-// 	}
-// 	fmt.Println(string(jsonBook))
-// }
-
-// book slice to seed record album data.
 var books = []book{
 	{Id: "1", Title: "C# Garbage Collection", Author: "Some C# Guru", Description: "Long book about garbage collection", Genre: "Technical", Has_read: false},
 	{Id: "2", Title: "Then there were none", Author: "Agatha Christie", Description: "An eerie whodunit", Genre: "Entertainment", Has_read: true},
 	{Id: "3", Title: "System Design interview", Author: "alex Xu", Description: "A good book on system design interviews", Genre: "Technical", Has_read: true},
 }
 
-type response struct {
-	HttpStatusCode string      `json:"httpStatusCode"`
-	SuccessMessage string      `json:"successMessage"`
-	Body           interface{} `json:"body"`
-}
-
-func respondWithJSON(writer http.ResponseWriter, httpStatusCode string, successMessage string, payload interface{}) {
+func respondWithJSON(writer http.ResponseWriter, httpStatusCode int, successMessage string, payload interface{}) {
 	writer.WriteHeader(200)
 	p := response{
 		HttpStatusCode: httpStatusCode,
@@ -49,7 +40,6 @@ func respondWithJSON(writer http.ResponseWriter, httpStatusCode string, successM
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
-	// json.NewEncoder(writer).Encode(p)
 	resp, err := json.MarshalIndent(p, "  ", "  ")
 	if err != nil {
 		log.Fatal()
@@ -59,71 +49,124 @@ func respondWithJSON(writer http.ResponseWriter, httpStatusCode string, successM
 
 // getAlbums responds with the list of all albums as JSON.
 func getBooks(writer http.ResponseWriter, request *http.Request) {
-	respondWithJSON(writer, "200", "SUCCESS", books)
+
+	respondWithJSON(writer, http.StatusOK, "SUCCESS", books)
 }
 
-func addBook(c *gin.Context) {
-	var newBook book
-	if err := c.BindJSON(&newBook); err != nil {
+func getBookByID(writer http.ResponseWriter, request *http.Request) {
+	id := path.Base(request.URL.Path)
+
+	if id != "" {
+		for _, b := range books {
+			if b.Id == id {
+				respondWithJSON(writer, http.StatusOK, "SUCCESS", []book{b})
+				return
+			}
+		}
+	}
+	respondWithJSON(writer, http.StatusNoContent, "NOT FOUND", map[string]string{"message": "book not found"})
+
+}
+
+func updateBook(writer http.ResponseWriter, request *http.Request) {
+	vars := mux.Vars(request)
+
+	var b book
+	decoder := json.NewDecoder(request.Body)
+	if err := decoder.Decode(&b); err != nil {
+		respondWithJSON(writer, http.StatusBadRequest, "Invalid resquest payload", nil)
 		return
 	}
 
-	books = append(books, newBook)
-	c.IndentedJSON(http.StatusCreated, newBook)
-}
-
-func getBookByID(c *gin.Context) {
-	id := c.Param("id")
-
-	for _, b := range books {
-		if b.Id == id {
-			c.IndentedJSON(http.StatusOK, b)
-			return
-		}
-	}
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "book not found"})
-}
-func updateBook(c *gin.Context) {
-	id := c.Param("id")
-
-	var updateBook book
-	if err := c.BindJSON(&updateBook); err != nil {
+	defer request.Body.Close()
+	b.Id = vars["id"]
+	if b.Id == "" {
+		respondWithJSON(writer, http.StatusNoContent, "NOT FOUND", map[string]string{"message": "Id in URL not found"})
 		return
 	}
-	for _, b := range books {
-		if b.Id == id {
-			b.Id = id
-			b.Author = updateBook.Author
-			b.Title = updateBook.Title
-			b.Description = updateBook.Description
-			b.Genre = updateBook.Genre
-			b.Has_read = updateBook.Has_read
-			c.IndentedJSON(http.StatusOK, b)
 
-			return
+	var index int = -1
+	for i, book := range books {
+		if book.Id == b.Id {
+			index = i
+			break
 		}
 	}
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "book not found"})
-}
-func deleteBook(c *gin.Context) {
-	id := c.Param("id")
+	if index == -1 {
+		respondWithJSON(writer, http.StatusNoContent, "NOT FOUND", map[string]string{"message": "No such book with that id in the database"})
+		return
+	}
+	books[index].Author = b.Author
+	books[index].Description = b.Description
+	books[index].Genre = b.Genre
+	books[index].Has_read = b.Has_read
+	books[index].Title = b.Title
 
+	respondWithJSON(writer, http.StatusOK, "SUCCESS", books[index])
+}
+
+func addBook(writer http.ResponseWriter, request *http.Request) {
+	var b book
+	decoder := json.NewDecoder(request.Body)
+	if err := decoder.Decode(&b); err != nil {
+		respondWithJSON(writer, http.StatusBadRequest, "Invalid resquest payload", nil)
+		return
+	}
+	defer request.Body.Close()
+
+	var maxId int
 	for _, b := range books {
-		if b.Id == id {
-			c.IndentedJSON(http.StatusOK, b)
-			return
+		bookId, err := strconv.Atoi(b.Id)
+		if err != nil {
+			log.Fatal()
+		}
+		if bookId > maxId {
+			maxId = bookId
 		}
 	}
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "book not found"})
+	b.Id = strconv.Itoa(maxId + 1)
+	books = append(books, b)
+	respondWithJSON(writer, http.StatusOK, "SUCCESSFULLY ADDED", b)
 }
+
+func deleteBook(writer http.ResponseWriter, request *http.Request) {
+	vars := mux.Vars(request)
+
+	id := vars["id"]
+	if id == "" {
+		respondWithJSON(writer, http.StatusNoContent, "NOT FOUND", map[string]string{"message": "Id in URL not found"})
+		return
+	}
+
+	var index int = -1
+	for i, book := range books {
+		if book.Id == id {
+			index = i
+			break
+		}
+	}
+
+	if index == -1 {
+		respondWithJSON(writer, http.StatusNoContent, "NOT FOUND", map[string]string{"message": "No such book with that id in the database"})
+		return
+	}
+
+	books = append(books[:index], books[index+1:]...)
+	respondWithJSON(writer, http.StatusOK, "SUCCESSFULLY DELETED", books)
+}
+
 func main() {
-	// router.GET("/books", getBooks)
-	// getAllBooksHandler := http.HandlerFunc(getBooks)
-	http.HandleFunc("/books", getBooks)
-	http.ListenAndServe("localhost:8080", nil)
-	// router.GET("/book/:id", getBookByID)
-	// router.POST("/book", addBook)
-	// router.PUT("/book/:id", updateBook)
-	// router.DELETE("/book/:id", deleteBook)
-	// router.Run("localhost:8080")
+	r := mux.NewRouter()
+	r.HandleFunc("/", getBooks).Methods("GET")
+	r.HandleFunc("/books", getBooks).Methods("GET")
+	r.HandleFunc("/books/{id}", getBookByID).Methods("GET")
+	r.HandleFunc("/books/{id}", updateBook).Methods("PUT")
+	r.HandleFunc("/books", addBook).Methods("POST")
+	r.HandleFunc("/books/{id}", deleteBook).Methods("DELETE")
+
+	srv := &http.Server{
+		Handler: r,
+		Addr:    ":8080",
+	}
+	log.Fatal(srv.ListenAndServe())
 }
