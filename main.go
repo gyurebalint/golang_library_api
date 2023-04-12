@@ -26,9 +26,27 @@ type response struct {
 }
 
 var books = []book{
-	{Id: "1", Title: "C# Garbage Collection", Author: "Some C# Guru", Description: "Long book about garbage collection", Genre: "Technical", Has_read: false},
-	{Id: "2", Title: "Then there were none", Author: "Agatha Christie", Description: "An eerie whodunit", Genre: "Entertainment", Has_read: true},
-	{Id: "3", Title: "System Design interview", Author: "alex Xu", Description: "A good book on system design interviews", Genre: "Technical", Has_read: true},
+	{
+		Id:          "1",
+		Title:       "C# Garbage Collection",
+		Author:      "Some C# Guru",
+		Description: "Long book about garbage collection",
+		Genre:       "Technical",
+		Has_read:    false},
+	{
+		Id:          "2",
+		Title:       "Then there were none",
+		Author:      "Agatha Christie",
+		Description: "An eerie whodunit",
+		Genre:       "Entertainment",
+		Has_read:    true},
+	{
+		Id:          "3",
+		Title:       "System Design interview",
+		Author:      "alex Xu",
+		Description: "A good book on system design interviews",
+		Genre:       "Technical",
+		Has_read:    true},
 }
 
 func respondWithJSON(writer http.ResponseWriter, httpStatusCode int, successMessage string, payload interface{}) {
