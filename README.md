@@ -1,5 +1,6 @@
 # golang_library_api
 - golang
 - gorilla
+- in memory
 
-Small backend api for a library. Could be useful anyone who wants to make a frontend app for practice
+Simple backend api for a library to start immersing myself into golang. Nothing fancy, no structuring, no frameworks just one file and basic CRUD.
